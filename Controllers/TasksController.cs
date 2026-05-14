@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using to_do_backend.Models;
+using to_do_backend.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace to_do_backend.Controllers;
 
@@ -7,24 +9,67 @@ namespace to_do_backend.Controllers;
 [Route("api/[controller]")]
 public class TasksController : ControllerBase
 {
-    private static List<TaskItem> tasks = new List<TaskItem>
+    private readonly AppDbContext _context = null!;
+
+    public TasksController(AppDbContext context)
     {
-        new TaskItem { Id = 1, Title = "Hello", Completed = false },
-        new TaskItem { Id = 2, Title = "World", Completed = false }
-    };
+        _context = context;
+    }
 
     [HttpGet]
-    public ActionResult<IEnumerable<TaskItem>> GetTasks()
-    {
-        return Ok(tasks);
+    public async Task<ActionResult<IEnumerable<TaskItem>>> GetTasks()
+    {  
+        return await _context.Tasks.ToListAsync();    
     }
 
     [HttpPost]
     public ActionResult<TaskItem> CreateTask(TaskItem newTask)
     {
-        newTask.Id = tasks.Count + 1;
-        tasks.Add(newTask);
+        if (string.IsNullOrWhiteSpace(newTask.Title))
+        {
+            return BadRequest("Task name can not be empty.");
+        }
+        
+        _context.Tasks.Add(newTask);
+        _context.SaveChanges();
 
-        return CreatedAtAction(nameof(GetTasks), new { id = newTask.Id}, newTask);
+        return CreatedAtAction(nameof(GetTasks), new { id = newTask.Id }, newTask);
+    }
+
+    [HttpDelete("{id}")]
+    public ActionResult DeleteTask(int id)
+    {
+        var task = _context.Tasks.Find(id);
+        if (task == null) return NotFound();
+        _context.Tasks.Remove(task);
+        _context.SaveChanges();
+
+        return NoContent();
+    }
+
+    [HttpPut("{id}")]
+    public ActionResult UpdateTask(int id, TaskItem updatedTask)
+    {
+        if (id != updatedTask.Id)
+        {
+            return BadRequest("ID mismatch");
+        }
+
+        _context.Entry(updatedTask).State = EntityState.Modified;
+
+        try
+        {
+            _context.SaveChanges();
+        } 
+        catch(DbUpdateConcurrencyException)
+        {
+            if (!_context.Tasks.Any(t => t.Id == id))
+            {
+                return NotFound();
+            }
+            throw;
+        }
+
+        return NoContent();
     }
 }
