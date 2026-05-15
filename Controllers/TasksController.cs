@@ -23,7 +23,7 @@ public class TasksController : ControllerBase
     }
 
     [HttpPost]
-    public ActionResult<TaskItem> CreateTask(TaskItem newTask)
+    public async Task<ActionResult<TaskItem>> CreateTask([FromBody] TaskItem newTask)
     {
         if (string.IsNullOrWhiteSpace(newTask.Title))
         {
@@ -31,45 +31,38 @@ public class TasksController : ControllerBase
         }
         
         _context.Tasks.Add(newTask);
-        _context.SaveChanges();
+        await _context.SaveChangesAsync();
 
         return CreatedAtAction(nameof(GetTasks), new { id = newTask.Id }, newTask);
     }
 
     [HttpDelete("{id}")]
-    public ActionResult DeleteTask(int id)
+    public async Task<ActionResult> DeleteTask(int id)
     {
-        var task = _context.Tasks.Find(id);
+        var task = await _context.Tasks.FindAsync(id);
         if (task == null) return NotFound();
         _context.Tasks.Remove(task);
-        _context.SaveChanges();
+        await _context.SaveChangesAsync();
 
         return NoContent();
     }
 
     [HttpPut("{id}")]
-    public ActionResult UpdateTask(int id, TaskItem updatedTask)
+    public async Task<ActionResult> UpdateTask(int id, [FromBody] TaskItem updatedTask)
     {
         if (id != updatedTask.Id)
         {
             return BadRequest("ID mismatch");
         }
 
-        _context.Entry(updatedTask).State = EntityState.Modified;
+        var task = await _context.Tasks.FindAsync(id);
+        if (task == null) return NotFound();
 
-        try
-        {
-            _context.SaveChanges();
-        } 
-        catch(DbUpdateConcurrencyException)
-        {
-            if (!_context.Tasks.Any(t => t.Id == id))
-            {
-                return NotFound();
-            }
-            throw;
-        }
+        task.Title = updatedTask.Title;
+        task.Completed = updatedTask.Completed;
 
+        await _context.SaveChangesAsync();
+        
         return NoContent();
     }
 }
